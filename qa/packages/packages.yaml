@@ -42,8 +42,6 @@ ceph:
   - ceph-mgr-diskprediction-local
   - ceph-mgr-rook
   - ceph-fuse
-  - cephfs-java
-  - libcephfs_jni1
   - libcephfs2
   - libcephfs-devel
   - librados3
