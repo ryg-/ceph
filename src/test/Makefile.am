@@ -121,7 +121,6 @@ check_SCRIPTS += \
        test/mon/test_pool_quota.sh \
 	test/osd/osd-scrub-repair.sh \
 	test/osd/osd-scrub-snaps.sh \
-#	test/osd/osd-scrub-test.sh \
 	test/osd/osd-recovery-scrub.sh \
 	test/osd/osd-config.sh \
 	test/osd/osd-reuse-id.sh \
