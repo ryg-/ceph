@@ -6,21 +6,38 @@ import logging
 from salt_manager import SaltManager
 from teuthology.exceptions import (CommandFailedError, ConfigError)
 from teuthology.orchestra import run
-from teuthology.misc import sh
+from teuthology.misc import sh, write_file
 from teuthology.task import Task
-from util import check_config_key, copy_directory_recursively, get_remote_for_role
+from util import (
+        check_config_key,
+        copy_directory_recursively,
+        get_remote_for_role
+    )
 
 log = logging.getLogger(__name__)
 health_ok_cmd = "health-ok.sh --teuthology"
 cluster_roles = ['mon', 'mgr', 'osd', 'mds', 'rgw', 'igw', 'ganesha']
+salt_api_test = """# Salt API test script
+set -e
+TMPFILE=$(mktemp)
+echo "Salt API test: BEGIN"
+systemctl --no-pager --full status salt-api.service
+curl http://$(hostname):8000/ | tee $TMPFILE # show curl output in log
+test -s $TMPFILE
+jq . $TMPFILE >/dev/null
+echo -en "\\n" # this is just for log readability
+rm $TMPFILE
+echo "Salt API test: END"
+"""
+
 
 class DeepSeaDeploy(Task):
     """
     Deploy Ceph using DeepSea
 
-    Assumes a Salt cluster is already running (use the "salt" task to achieve this)
-    and DeepSea has already been installed (use the "install" or "deepsea" tasks
-    to achieve that).
+    Assumes a Salt cluster is already running (use the "salt" task to achieve
+    this) and DeepSea has already been installed (use the "install" or
+    "deepsea" tasks to achieve that).
 
     This task understands the following config keys:
 
@@ -51,39 +68,39 @@ class DeepSeaDeploy(Task):
             raise ConfigError(
                     "deepsea_deploy: commands config param takes a list")
         self.log.info("deepsea_deploy: deployment command list: {}"
-                       .format(deploy_cmdlist))
+                      .format(deploy_cmdlist))
         self.sm = SaltManager(self.ctx, self.config)
         self.master_remote = self.sm.master_remote
-        #self.log.debug("ctx.config {}".format(ctx.config))
+#       self.log.debug("ctx.config {}".format(ctx.config))
         log.debug("Munged config is {}".format(self.config))
 
-    def _master_python_version(self, py_version):
+    def _copy_health_ok(self):
         """
-        Determine if a given python version is installed on the Salt Master node.
+        Copy health-ok.sh from teuthology VM to master_remote
         """
-        python_binary = 'python{}'.format(py_version)
-        installed = True
-        try:
-            self.master_remote.run(args=[
-                'type',
-                python_binary,
-                run.Raw('>'),
-                '/dev/null',
-                run.Raw('2>&1'),
+        suite_path = self.ctx.config.get('suite_path')
+        log.info("suite_path is ->{}<-".format(suite_path))
+        sh("ls -l {}".format(suite_path))
+        health_ok_path = suite_path + "/deepsea/health-ok"
+        sh("test -d " + health_ok_path)
+        copy_directory_recursively(
+                health_ok_path, self.master_remote, "health-ok")
+        self.master_remote.run(args=[
+            "pwd",
+            run.Raw(";"),
+            "ls",
+            "-lR",
+            "health-ok",
             ])
-        except CommandFailedError:
-            installed = False
-        if installed:
-            self.master_remote.run(args=[
-                python_binary,
-                '--version'
-            ])
-        else:
-            self.log.info('{} not installed on master node'.format(python_binary))
-        return installed
+
+    def _deploy_ceph(self):
+        self._initialization_sequence()
+        self._run_commands()
 
     def _deepsea_cli_version(self):
-        """Use DeepSea CLI to display the DeepSea version under test"""
+        """
+        Use DeepSea CLI to display the DeepSea version under test
+        """
         installed = True
         try:
             self.master_remote.run(args=[
@@ -103,22 +120,11 @@ class DeepSeaDeploy(Task):
         else:
             self.log.info("deepsea CLI not installed")
 
-    def _set_pillar_deepsea_minions(self):
-        """Set deepsea_minions pillar value"""
-        self.master_remote.run(args=[
-            'sudo',
-            'sh',
-            '-c',
-            'echo "deepsea_minions: \'*\'" > /srv/pillar/ceph/deepsea_minions.sls',
-            run.Raw(';'),
-            'cat',
-            '/srv/pillar/ceph/deepsea_minions.sls',
-        ])
-
     def _initialization_sequence(self):
         """
         Port of initialization_sequence from health-ok.sh
         """
+        self.log.info("WWWW: starting deepsea_deploy initialization sequence")
         self.sm.master_rpm_q('ceph')
         self.sm.master_rpm_q('ceph-test')
         self.sm.master_rpm_q('salt-master')
@@ -126,7 +132,8 @@ class DeepSeaDeploy(Task):
         self.sm.master_rpm_q('salt-api')
         self._master_python_version(2)
         if not self._master_python_version(3):
-            raise ConfigError("Python 3 not installed on master node - bailing out!")
+            raise ConfigError("Python 3 not installed on master node"
+                              " - bailing out!")
         self._deepsea_cli_version()
         self._set_pillar_deepsea_minions()
         self.sm.sync_pillar_data()
@@ -162,8 +169,8 @@ class DeepSeaDeploy(Task):
         which will look something like this:
 
             {
-                "osd": { "osd.0": osd0remotename, ..., "osd.n": osdnremotename },
-                "mon": { "mon.a": monaremotename, ..., "mon.n": monnremotename },
+                "osd": { "osd.0": osd0remname, ..., "osd.n": osdnremname },
+                "mon": { "mon.a": monaremname, ..., "mon.n": monnremname },
                 ...
             }
 
@@ -194,11 +201,14 @@ class DeepSeaDeploy(Task):
             self.remote_lookup_table[remote.hostname] = node_roles_list
             # inner loop: roles (something like "osd.1" or "c2.mon.a")
             for role in node_roles_list:
-                # FIXME: support multiple clusters as used in, e.g., rgw/multisite suite
+                # FIXME: support multiple clusters as used in, e.g.,
+                # rgw/multisite suite
                 role_arr = role.split('.')
                 if len(role_arr) != 2:
-                    raise ConfigError("deepsea_deploy: unsupported role ->{}<- encountered!"
-                                      .format(role))
+                    raise ConfigError(
+                        "deepsea_deploy: unsupported role ->{}<- encountered!"
+                        .format(role)
+                    )
                 (role_type, role_idx) = role_arr
                 remote = get_remote_for_role(self.ctx, role)
                 self.role_remotes[remote.hostname] = remote
@@ -221,43 +231,151 @@ class DeepSeaDeploy(Task):
         self.log.info("cluster_remotes == {}".format(self.cluster_remotes))
         self.log.info("client_nodes == {}".format(self.client_nodes))
         self.log.info("role_lookup_table == {}".format(self.role_lookup_table))
-        self.log.info("remote_lookup_table == {}".format(self.remote_lookup_table))
+        self.log.info("remote_lookup_table == {}"
+                      .format(self.remote_lookup_table))
         self.log.info("dev_env == {}".format(self.dev_env))
 
-    def _copy_health_ok(self):
+    def _master_python_version(self, py_version):
         """
-        Copy health-ok.sh from teuthology VM to master_remote
+        Determine if a given python version is installed on the Salt Master
+        node.
         """
-        suite_path = self.ctx.config.get('suite_path')
-        log.info("suite_path is ->{}<-".format(suite_path))
-        sh("ls -l {}".format(suite_path))
-        health_ok_path = suite_path + "/deepsea/health-ok"
-        sh("test -d " + health_ok_path)
-        copy_directory_recursively(health_ok_path, self.master_remote, "health-ok")
+        python_binary = 'python{}'.format(py_version)
+        installed = True
+        try:
+            self.master_remote.run(args=[
+                'type',
+                python_binary,
+                run.Raw('>'),
+                '/dev/null',
+                run.Raw('2>&1'),
+            ])
+        except CommandFailedError:
+            installed = False
+        if installed:
+            self.master_remote.run(args=[
+                python_binary,
+                '--version'
+            ])
+        else:
+            self.log.info('{} not installed on master node'
+                          .format(python_binary))
+        return installed
+
+    def _run_command_dict(self, cmd_dict):
+        """
+        Process commands given in form of dict - example:
+
+            commands:
+            - stage0:
+                update: true,
+                reboot: false
+        """
+        if len(cmd_dict.keys()) != 1:
+            raise ConfigError(
+                    "deepsea_deploy: command dict must have only one key")
+        directive = cmd_dict.keys()[0]
+        if directive == "stage0":
+            self._run_stage_0(cmd_dict['stage0'])
+        else:
+            raise ConfigError(
+                    "deepsea_deploy: unknown directive ->{}<- in command dict"
+                    .format(directive))
+
+    def _run_command_str(self, cmd):
+        if cmd.startswith('health-ok.sh'):
+            cmd = "health-ok/" + cmd
+        if self.dev_env:
+            cmd = "DEV_ENV=true " + cmd
+        self.log.info("deepsea_deploy: WWWW: running command ->{}<-"
+                      .format(cmd))
         self.master_remote.run(args=[
-            "pwd",
-            run.Raw(";"),
-            "ls",
-            "-lR",
-            "health-ok",
+            'sudo',
+            'bash',
+            '-c',
+            cmd,
             ])
 
     def _run_commands(self):
         for cmd in self.config['commands']:
-            if cmd.startswith('health-ok.sh'):
-                cmd = "health-ok/" + cmd
-            if self.dev_env:
-                cmd = "DEV_ENV=\"true\" " + cmd
+            self.log.debug("deepsea_deploy: considering command {}"
+                           .format(cmd))
+            if isinstance(cmd, dict):
+                self._run_command_dict(cmd)
+            elif isinstance(cmd, str):
+                self._run_command_str(cmd)
+            else:
+                raise ConfigError(
+                          "deepsea_deploy: command must be either dict or str")
+
+    def _run_stage(self, stage_num):
+        """Run a stage. Dump journalctl on error."""
+        self.log.info("WWWW: Running DeepSea Stage {}".format(stage_num))
+        try:
+            if self.config['cli']:
+                self._run_command_str(
+                    (
+                        'timeout 60m deepsea '
+                        '--log-file=/var/log/salt/deepsea.log '
+                        '--log-level=debug '
+                        'stage run ceph.stage.{} --simple-output'
+                    ).format(stage_num)
+                )
+            else:
+                self._run_command_str(
+                    (
+                        'timeout 60m salt-run --no-color '
+                        'state.orch ceph.stage.{}'
+                    ).format(stage_num)
+                )
+        except CommandFailedError:
+            self.log.error(
+                "deepsea_deploy: WWWW: Stage {} failed. ".format(stage_num)
+                + "Here comes journalctl!")
             self.master_remote.run(args=[
                 'sudo',
-                'bash',
-                '-c',
-                cmd,
+                'journalctl',
+                '--all',
                 ])
+            raise
 
-    def _deploy_ceph(self):
-        self._initialization_sequence()
-        self._run_commands()
+    def _run_stage_0(self, config):
+        """
+        Run Stage 0
+        """
+        if not config:
+            config = {}
+        check_config_key(config, "update", True)
+        check_config_key(config, "reboot", False)
+        # FIXME: implement alternative defaults
+        self._run_stage(0)
+        self.sm.all_minions_zypper_ps()
+        self._salt_api_test()
+
+    def _salt_api_test(self):
+        write_file(self.master_remote, 'salt_api_test.sh', salt_api_test)
+        self.master_remote.run(args=[
+            'bash',
+            'salt_api_test.sh',
+            ])
+
+    def _set_pillar_deepsea_minions(self):
+        """
+        Set deepsea_minions pillar value
+        """
+        echo_cmd = (
+            'echo "deepsea_minions: \'*\'" > '
+            '/srv/pillar/ceph/deepsea_minions.sls'
+        )
+        self.master_remote.run(args=[
+            'sudo',
+            'sh',
+            '-c',
+            echo_cmd,
+            run.Raw(';'),
+            'cat',
+            '/srv/pillar/ceph/deepsea_minions.sls',
+        ])
 
     def setup(self):
         super(DeepSeaDeploy, self).setup()
@@ -280,9 +398,9 @@ class DeepSeaDeploy(Task):
 
     def teardown(self):
         super(DeepSeaDeploy, self).teardown()
-        #log.debug("beginning of DeepSeaDeploy task teardown method...")
+#       log.debug("beginning of DeepSeaDeploy task teardown method...")
         pass
-        #log.debug("end of DeepSeaDeploy task teardown method...")
+#       log.debug("end of DeepSeaDeploy task teardown method...")
 
 
 task = DeepSeaDeploy
