@@ -94,7 +94,7 @@ class SaltManager(object):
             while proceed():
                 output = StringIO()
                 self.master_remote.run(args=ping_cmd, stdout=output)
-                responded = len(re.findall('True', output.getvalue()))
+                responded = len(re.findall('  True', output.getvalue()))
                 output.close()
                 log.info("{} of {} minions responded"
                          .format(responded, expected))
@@ -202,7 +202,7 @@ class SaltManager(object):
         """
         number_of_minions = len(self.minions)
         self.__ping(
-            "sudo sh -c salt \\* test.ping || true",
+            "sudo sh -c \'salt \\* test.ping\' || true",
             number_of_minions,
             )
         return number_of_minions
