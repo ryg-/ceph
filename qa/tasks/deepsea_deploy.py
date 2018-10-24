@@ -315,7 +315,8 @@ class DeepSeaDeploy(Task):
                 ...
                 remotenname: [ remotenrole0, ..., remotenrole99 ],
             }
-
+_file(self.master_remote, conf_file, data)
+                    info_msg = ("
         (In other words, self.remote_lookup_table is just like the roles
         stanza, except the role lists are keyed by remote name.)
         """
@@ -741,7 +742,7 @@ profile-{profile}/cluster/{remote}.sls
         for section in config.keys():
             if config[section] is not None:
                 for conf_item, conf_value in config[section].iteritems():
-                    data = conf_item + ' = ' + str(conf_value) + '\n'
+                    data = '{} = {}\n'.format(conf_item, conf_value)
                     exec('conf_file = ' + section + '_conf')
                     sudo_append_to_file(self.master_remote, conf_file, data)
                     info_msg = ("deepsea_deploy: " + data + "adding to file: " + conf_file)
