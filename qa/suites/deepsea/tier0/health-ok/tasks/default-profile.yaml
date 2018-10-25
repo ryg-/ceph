@@ -6,6 +6,8 @@ tasks:
         - stage1:
         - policy_cfg:
             profile: default
+        - survive_reboot:
+            test: True
         - stage2:
         - stage3:
         - 'ceph -s'

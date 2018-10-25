@@ -610,6 +610,12 @@ profile-{profile}/cluster/{remote}.sls
         elif directive == "state_orch":
             config = cmd_dict['state_orch']
             target = self._state_orch
+        # A dummy directive that triggers a reboot
+        # in order to test the survivability of
+        # the _survive_reboot handler.
+        elif directive == "survive_reboot":
+            config = cmd_dict['survive_reboot']
+            target = self._survive_reboot
         else:
             raise ConfigError(
                 "deepsea_deploy: unknown directive ->{}<- in command dict"
@@ -767,6 +773,16 @@ profile-{profile}/cluster/{remote}.sls
             cmd_str = (
                 'timeout 60m salt-run --no-color state.orch {}'
                 ).format(config["name"])
+        self._run_command_str(cmd_str)
+
+    def _state_orch(self, config, reboot=False):
+        """
+        Test survivablity of reboots
+        """
+        if not config:
+            config = {}
+        cmd_str = ('echo THIS IS A TEST')
+        #cmd_str = ('salt-call system.reboot')
         self._run_command_str(cmd_str)
 
     def setup(self):
