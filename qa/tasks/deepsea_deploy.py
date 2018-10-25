@@ -2,9 +2,12 @@
 Task that deploys a Ceph cluster using DeepSea
 '''
 import logging
+import time
 
 from salt_manager import SaltManager
-from teuthology.exceptions import (CommandFailedError, ConfigError)
+from teuthology.exceptions import (CommandFailedError,
+                                   ConfigError,
+                                   ConnectionLostError)
 from teuthology.orchestra import run
 from teuthology.misc import (
     sh,
@@ -616,6 +619,9 @@ profile-{profile}/cluster/{remote}.sls
         elif directive == "survive_reboot":
             config = cmd_dict['survive_reboot']
             target = self._survive_reboot
+        elif directive == "reboot":
+            config = cmd_dict['reboot']
+            target = self._survive_reboot
         else:
             raise ConfigError(
                 "deepsea_deploy: unknown directive ->{}<- in command dict"
@@ -775,15 +781,37 @@ profile-{profile}/cluster/{remote}.sls
                 ).format(config["name"])
         self._run_command_str(cmd_str)
 
-    def _state_orch(self, config, reboot=False):
+
+    def _survive_reboot(self, config, reboot=False):
         """
         Test survivablity of reboots
         """
         if not config:
             config = {}
-        cmd_str = ('echo THIS IS A TEST')
-        #cmd_str = ('salt-call system.reboot')
-        self._run_command_str(cmd_str)
+        cmd_str = ('echo rebooting; salt-call system.reboot')
+        self._run_command_str_with_retry(cmd_str)
+
+    def _run_command_str_with_retry(self, cmd_str):
+        attempts = 0
+        sleep_time = 30
+        max_attempts = 5
+        while attempts < max_attempts:
+            if attempts > 0:
+                cmd_str = "echo AFTER THE REBOOT"
+            try:
+                self._run_command_str(cmd_str)
+                break
+            except ConnectionLostError:
+                # set to None, as only then the reconnect in
+                # remote.py(run()) triggers
+                # self.master_remote.ssh = None
+                log.info('I caught a ConnectionLostError')
+            except CommandFailedError:
+                log.info('I caught a CommandFailedError')
+            attempts += 1
+            log.info('At attempt {}. {} more to go'.format(attempts, max_attempts-attempts))
+            log.info("Sleeping for {} seconds".format(sleep_time))
+            time.sleep(sleep_time)
 
     def setup(self):
         super(DeepSea_Deploy, self).setup()

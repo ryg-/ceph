@@ -138,6 +138,7 @@ class LocalRemoteProcess(object):
     def __init__(self, args, subproc, check_status, stdout, stderr):
         self.args = args
         self.subproc = subproc
+        log.debug("I'm ACTUALLY being called")
         if stdout is None:
             self.stdout = StringIO()
         else:
@@ -818,6 +819,7 @@ class LocalContext(object):
     def __init__(self):
         self.config = {}
         self.teuthology_config = teuth_config
+        log.debug('HI FROM LOCALCONTEXT')
         self.cluster = LocalCluster()
         self.daemons = DaemonGroup()
 

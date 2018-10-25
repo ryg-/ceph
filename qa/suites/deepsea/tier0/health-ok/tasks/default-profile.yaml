@@ -2,12 +2,7 @@ tasks:
   - deepsea_deploy:
       cli: true
       commands:
-        - stage0:
-        - stage1:
-        - policy_cfg:
-            profile: default
+        - reboot:
+            foo: bar
         - survive_reboot:
             test: True
-        - stage2:
-        - stage3:
-        - 'ceph -s'
