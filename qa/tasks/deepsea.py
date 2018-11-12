@@ -891,8 +891,8 @@ class State(DeepSea):
     def _run_state(self):
         """Run a state. Dump journalctl on error."""
         cmd_str = (
-            'timeout 60m salt {} '
-            '--no-color state.apply {}'
+            "timeout 60m salt '{}' "
+            "--no-color state.apply {}"
             ).format(self.target, self.state)
         if self.quiet_salt:
             cmd_str += ' 2>/dev/null'
