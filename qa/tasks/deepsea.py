@@ -888,7 +888,7 @@ class State(DeepSea):
             .format(state)
             ))
 
-    def _run_orch(self):
+    def _run_state(self):
         """Run a state. Dump journalctl on error."""
         cmd_str = (
             'timeout 60m salt {} '
