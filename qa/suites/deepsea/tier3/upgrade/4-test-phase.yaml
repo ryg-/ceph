@@ -1,0 +1,11 @@
+tasks:
+        - deepsea.validation:
+        - exec:
+                client.salt_master:
+                        -ceph ' -s'
+        - deepsea.orch:
+                allow_reboot: True
+                state_orch: ceph.maintenance.upgrade
+        - exec:
+                client.salt_master:
+                        -ceph ' -s'

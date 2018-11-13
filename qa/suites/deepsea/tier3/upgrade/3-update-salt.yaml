@@ -1,0 +1,3 @@
+tasks:
+        - deepsea.state:
+                state: ceph.updates.salt
