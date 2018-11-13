@@ -509,16 +509,13 @@ class DeepSea(Task):
     def _maybe_apply_alternative_defaults(self):
         global_yml = '/srv/pillar/ceph/stack/global.yml'
         if self.alternative_defaults:
-            data = ''
-            for k, v in self.alternative_defaults.items():
-                data += "{}: {}\n".format(k, v)
-                self.log.info("Applying alternative default {}: {}".format(k, v))
+            data = data = "\n".join([
+                yaml.dump(x, default_flow_style=False) for x in self.alternative_defaults
+                ])
             if data:
-                sudo_append_to_file(
-                    self.master_remote,
-                    global_yml,
-                    data,
-                    )
+                # remote.sh does not return partial output when the command times out,
+                # so we hope the following command will not time out
+                self.master_remote.sh("sudo tee -a {}".format(global_yml), stdin=data)
         dump_file_that_might_not_exist(self.master_remote, global_yml)
 
     def _populate_deepsea_context(self):
