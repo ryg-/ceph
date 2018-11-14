@@ -1,0 +1,7 @@
+tasks:
+        - exec:
+                client.salt_master:
+                        - 'ceph -s'
+        - deepsea.validation:
+        - deepsea.script:
+                rack_dc_region_unavailability:
