@@ -1585,9 +1585,13 @@ class State(DeepSea):
 
     def _run_state(self):
         """Run a state. Dump journalctl on error."""
+        if '*' in self.target:
+            quoted_target = '\\\'{}\\\''.format(self.target)
+        else:
+            quoted_target = self.target
         cmd_str = (
-            "timeout 60m salt \\\'{}\\\' --no-color state.apply {}"
-            ).format(self.target, self.state)
+            "timeout 60m salt {} --no-color state.apply {}"
+            ).format(quoted_target, self.state)
         if self.quiet_salt:
             cmd_str += ' 2>/dev/null'
         remote_exec(
