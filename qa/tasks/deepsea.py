@@ -1586,7 +1586,7 @@ class State(DeepSea):
     def _run_state(self):
         """Run a state. Dump journalctl on error."""
         if '*' in self.target:
-            quoted_target = "\\'{}\\'".format(self.target)
+            quoted_target = "\'{}\'".format(self.target)
         else:
             quoted_target = self.target
         cmd_str = (
