@@ -853,71 +853,6 @@ class CreatePools(DeepSea):
     def teardown(self):
         pass
 
-class State(DeepSea):
-
-    def __init__(self, ctx, config):
-        deepsea_ctx['logger_obj'] = log.getChild('state')
-        super(State, self).__init__(ctx, config)
-        # cast stage/state_orch value to str because it might be a number
-        self.state = str(self.config.get("state", ''))
-        # targets all machines if omitted
-        self.target = str(self.config.get("target", '*'))
-        if not self.state:
-            raise ConfigError(
-                "(state subtask) nothing to do. Specify a value for 'state'")
-        self.log.debug("munged config is {}".format(self.config))
-
-    def __log_state_start(self, state):
-        self.log.info(anchored(
-            "Running state {}"
-            .format(state)
-            ))
-
-    def _run_state(self):
-        """Run a state. Dump journalctl on error."""
-        cmd_str = (
-            "timeout 60m salt '{}' "
-            "--no-color state.apply {}"
-            ).format(self.target, self.state)
-        if self.quiet_salt:
-            cmd_str += ' 2>/dev/null'
-        self._exec(cmd_str)
-
-    def _exec(self, cmd_str):
-        """
-        # Executes a given command
-        """
-        try:
-            self.master_remote.run(args=[
-                'sudo', 'bash', '-c', cmd_str,
-                ])
-        except CommandFailedError:
-            self.log.error(anchored(
-                "state {} failed. ".format(cmd_str)
-                + "Here comes journalctl!"
-            ))
-            self.master_remote.run(args=[
-                'sudo',
-                'journalctl',
-                '--all',
-                ])
-            raise
-
-    def begin(self):
-        self.log.debug("beginning of begin method")
-        if self.state:
-            self.log.info(anchored(
-                "running state {}".format(self.state)
-                ))
-            self._run_state()
-            self.log.debug("end of begin method")
-            return None
-        self.log.debug("end of begin method")
-
-    def teardown(self):
-        # self.log.debug("beginning of teardown method")
-        pass
-        # self.log.debug("end of teardown method")
 
 class Dummy(DeepSea):
 
@@ -1623,6 +1558,43 @@ class Script(DeepSea):
         pass
 
 
+class State(DeepSea):
+
+    err_prefix = '(state subtask) '
+
+    def __init__(self, ctx, config):
+        deepsea_ctx['logger_obj'] = log.getChild('state')
+        super(State, self).__init__(ctx, config)
+        # cast stage/state_orch value to str because it might be a number
+        self.state = str(self.config.get("state", ''))
+        # targets all machines if omitted
+        self.target = str(self.config.get("target", '*'))
+        if not self.state:
+            raise ConfigError(self.err_prefix + "nothing to do. Specify a value for 'state'")
+
+    def _run_state(self):
+        """Run a state. Dump journalctl on error."""
+        cmd_str = (
+            "timeout 60m salt \'{}\' --no-color state.apply {}"
+            ).format(self.target, self.state)
+        if self.quiet_salt:
+            cmd_str += ' 2>/dev/null'
+        remote_exec(
+            self.master_remote,
+            cmd_str,
+            "state {}".format(self.state),
+            )
+
+    def begin(self):
+        self.log.info(anchored("running state {}".format(self.state)))
+        self._run_state()
+
+    def teardown(self):
+        # self.log.debug("beginning of teardown method")
+        pass
+        # self.log.debug("end of teardown method")
+
+
 class Validation(DeepSea):
     """
     A container for "validation tests", which are understood to mean tests that
@@ -1759,5 +1731,5 @@ orch = Orch
 policy = Policy
 reboot = Reboot
 script = Script
-validation = Validation
 state = State
+validation = Validation
