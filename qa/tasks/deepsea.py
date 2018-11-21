@@ -1559,6 +1559,16 @@ class Script(DeepSea):
 
 
 class State(DeepSea):
+    """
+    Runs an arbitrary Salt State on some minions.
+
+    This subtask understands the following config keys:
+
+        state    name of the state to run (mandatory)
+
+        target   target selection specifier (default: *)
+                 For details, see "man salt"
+    """
 
     err_prefix = '(state subtask) '
 
@@ -1570,12 +1580,13 @@ class State(DeepSea):
         # targets all machines if omitted
         self.target = str(self.config.get("target", '*'))
         if not self.state:
-            raise ConfigError(self.err_prefix + "nothing to do. Specify a value for 'state'")
+            raise ConfigError(
+                self.err_prefix + "nothing to do. Specify a non-empty value for 'state'")
 
     def _run_state(self):
         """Run a state. Dump journalctl on error."""
         cmd_str = (
-            "timeout 60m salt \'{}\' --no-color state.apply {}"
+            "timeout 60m salt \\\'{}\\\' --no-color state.apply {}"
             ).format(self.target, self.state)
         if self.quiet_salt:
             cmd_str += ' 2>/dev/null'
