@@ -24,6 +24,7 @@ from teuthology.exceptions import (
 from teuthology.misc import (
     sh,
     sudo_write_file,
+    write_file,
     )
 from teuthology.orchestra import run
 from teuthology.task import Task
@@ -1590,13 +1591,15 @@ class State(DeepSea):
         else:
             quoted_target = self.target
         cmd_str = (
-            "timeout 60m salt {} --no-color state.apply {}"
+            "set -ex\n"
+            "timeout 60m salt {} --no-color state.apply {}\n"
             ).format(quoted_target, self.state)
         if self.quiet_salt:
             cmd_str += ' 2>/dev/null'
+        write_file(remote, 'run_salt_state.sh', data)
         remote_exec(
             self.master_remote,
-            cmd_str,
+            'sudo bash run_salt_state.sh',
             "state {}".format(self.state),
             )
 
