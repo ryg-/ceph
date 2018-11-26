@@ -1596,7 +1596,7 @@ class State(DeepSea):
             ).format(quoted_target, self.state)
         if self.quiet_salt:
             cmd_str += ' 2>/dev/null'
-        write_file(remote, 'run_salt_state.sh', data)
+        write_file(self.master_remote, 'run_salt_state.sh', data)
         remote_exec(
             self.master_remote,
             'sudo bash run_salt_state.sh',
