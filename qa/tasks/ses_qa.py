@@ -21,6 +21,7 @@ ses_qa_ctx = {}
 class SESQA(Task):
 
     def __init__(self, ctx, config):
+        global ses_qa_ctx
         super(SESQA, self).__init__(ctx, config)
         if ses_qa_ctx:
             self.log = ses_qa_ctx['logger_obj']
@@ -31,11 +32,22 @@ class SESQA(Task):
             self.log.debug("populating ses_qa_ctx (we are *not* in a subtask)")
             self._populate_ses_qa_context()
         self.master_remote = ses_qa_ctx['master_remote']
-        self.scripts = Scripts(self.master_remote, ses_qa_ctx['logger_obj'])
+        self.nodes = self.ctx['nodes']
+        self.nodes_client_only = self.ctx['nodes_client_only']
+        self.nodes_cluster = self.ctx['nodes_cluster']
+        self.nodes_gateway = self.ctx['nodes_gateway']
+        self.nodes_storage = self.ctx['nodes_storage']
+        self.nodes_storage_only = self.ctx['nodes_storage_only']
+        self.remote_lookup_table = self.ctx['remote_lookup_table']
+        self.remotes = self.ctx['remotes']
+        self.roles = self.ctx['roles']
+        self.role_lookup_table = self.ctx['role_lookup_table']
+        self.role_types = self.ctx['role_types']
+        self.scripts = Scripts(self.ctx, self.log)
         self.sm = ses_qa_ctx['salt_manager_instance']
 
     def _populate_ses_qa_context(self):
-        ses_qa_ctx['roles'] = self.ctx.config['roles']
+        global ses_qa_ctx
         ses_qa_ctx['salt_manager_instance'] = SaltManager(self.ctx)
         ses_qa_ctx['master_remote'] = ses_qa_ctx['salt_manager_instance'].master_remote
 
@@ -62,6 +74,7 @@ class Validation(SESQA):
     err_prefix = "(validation subtask) "
 
     def __init__(self, ctx, config):
+        global ses_qa_ctx
         ses_qa_ctx['logger_obj'] = log.getChild('validation')
         self.name = 'ses_qa.validation'
         super(Validation, self).__init__(ctx, config)
@@ -71,7 +84,10 @@ class Validation(SESQA):
         """
         Minimal/smoke test for the MGR dashboard plugin
         """
-        self.scripts.mgr_dashboard_module_smoke()
+        self.scripts.run(
+            self.master_remote,
+            'mgr_plugin_dashboard_smoke.sh',
+            )
 
     def mgr_plugin_influx(self, **kwargs):
         """
@@ -99,7 +115,10 @@ class Validation(SESQA):
             self.ctx.cluster.run(
                 args=zypper_cmd.format(' '.join(["python3-influxdb", "influxdb"]))
                 )
-            self.scripts.mgr_plugin_influx()
+            self.scripts.run(
+                self.master_remote,
+                'mgr_plugin_influx.sh',
+                )
         else:
             self.log.warning(
                 "mgr_plugin_influx test case not implemented for OS ->{}<-"
