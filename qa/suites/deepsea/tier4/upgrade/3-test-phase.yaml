@@ -3,7 +3,7 @@ tasks:
                 client.salt_master:
                         - 'ceph -s'
         - deepsea.validation:
-        - deepsea.state:
-                state: ceph.updates.salt
+        - salt.command:
+                command: 'state.apply ceph.updates.salt'
         - deepsea.orch:
                 state_orch: ceph.maintenance.upgrade
