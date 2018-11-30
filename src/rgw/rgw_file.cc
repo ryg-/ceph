@@ -670,7 +670,12 @@ namespace rgw {
     case RGW_FS_TYPE_FILE:
     {
       if (rgw_fh->deleted())
+      {
+	lsubdout(get_context(), rgw, 0)
+                << __func__ << "bsc#1105004:getattr() file handle deleted"
+                << dendl;
 	return -ESTALE;
+      }
     }
     break;
     default:
@@ -1800,7 +1805,14 @@ int rgw_lookup_handle(struct rgw_fs *rgw_fs, struct rgw_fh_hk *fh_hk,
   RGWLibFS *fs = static_cast<RGWLibFS*>(rgw_fs->fs_private);
 
   RGWFileHandle* rgw_fh = fs->lookup_handle(*fh_hk);
+  lsubdout(fs->get_context(), rgw, 0)
+                << __func__ << "bsc#1105004:In rgw_lookup_handle()"
+                << dendl;
+
   if (! rgw_fh) {
+    lsubdout(fs->get_context(), rgw, 17)
+		<< __func__ << "bsc#1105004:rgw_lookup_handle failed for:" << *rgw_fh
+		<< dendl;
     /* not found */
     return -ENOENT;
   }
@@ -1836,6 +1848,10 @@ int rgw_getattr(struct rgw_fs *rgw_fs,
 {
   RGWLibFS *fs = static_cast<RGWLibFS*>(rgw_fs->fs_private);
   RGWFileHandle* rgw_fh = get_rgwfh(fh);
+
+  lsubdout(fs->get_context(), rgw, 0)
+                << __func__ << "bsc#1105004:In rgw_getattr()"
+                << dendl;
 
   return fs->getattr(rgw_fh, st);
 }

@@ -1144,10 +1144,17 @@ namespace rgw {
 	       uint32_t flags = FLAG_NONE);
 
     /* find existing RGWFileHandle */
-    RGWFileHandle* lookup_handle(struct rgw_fh_hk fh_hk) {
+    RGWFileHandle* lookup_handle(struct rgw_fh_hk fh_hk) { 
+      lsubdout(get_context(), rgw, 0)
+                << __func__ << "bsc#1105004:In lookup_handle()"
+                << dendl;
 
-      if (state.flags & FLAG_CLOSED)
+      if (state.flags & FLAG_CLOSED) {
+	lsubdout(get_context(), rgw, 0)
+		<< __func__ << "bsc#1105004:lookup_handle:state.flags & FLAG_CLOSED"
+		<< dendl;
 	return nullptr;
+      }
 
       RGWFileHandle::FHCache::Latch lat;
       fh_key fhk(fh_hk);
