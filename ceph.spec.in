@@ -15,6 +15,7 @@
 #
 %bcond_without ocf
 %bcond_with make_check
+%bcond_without libradosstriper
 %ifarch s390 s390x
 %bcond_with tcmalloc
 %else
@@ -25,7 +26,6 @@
 %bcond_without ceph_test_package
 %bcond_without cephfs_java
 %bcond_without lttng
-%bcond_without libradosstriper
 %global _remote_tarball_prefix https://download.ceph.com/tarballs/
 %endif
 %if 0%{?suse_version}
@@ -38,9 +38,7 @@
 %endif
 %if 0%{?is_opensuse}
 %bcond_without lttng
-%bcond_without libradosstriper
 %else
-%bcond_with libradosstriper
 %ifarch x86_64 aarch64
 %bcond_without lttng
 %else
