@@ -1,3 +1,4 @@
 tasks:
+- ses-qs:
 - ses_qa.complicated:
 
