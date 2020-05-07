@@ -377,6 +377,19 @@ class DeepSea(Task):
                     )
         dump_file_that_might_not_exist(self.master_remote, global_yml)
 
+    def _maybe_apply_private_netwrok(self):
+        network_cfg = '/srv/pillar/ceph/stack/ceph/cluster.yml'
+        data =('cluster_network: 192.168.200.0/24\n' +
+               'public_network: 10.162.230.0/24\n' )
+
+        sudo_append_to_file(
+            self.master_remote,
+            global_yml,
+            data,)
+
+        dump_file_that_might_not_exist(self.master_remote, network_cfg)
+
+
     def _populate_deepsea_context(self):
         global deepsea_ctx
         deepsea_ctx['allow_python2'] = self.config.get('allow_python2', True)
@@ -560,6 +573,7 @@ class DeepSea(Task):
         self._deepsea_version()
         self._deepsea_minions()
         self._maybe_apply_alternative_defaults()
+        self._maybe_apply_private_netwrok()
         # Stage 0 does this, but we have no guarantee Stage 0 will run
         self.sm.sync_pillar_data(quiet=self.quiet_salt)
 
@@ -1407,6 +1421,7 @@ class Policy(DeepSea):
             self._build_x('mds')
             self._build_x('rgw')
             self._build_x('igw')
+
             self._build_x('ganesha')
             self._build_storage_profile()
             self._write_policy_cfg()
